@@ -1,6 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+// ── Auth gate: runs immediately before any rendering ──
+(function() {
+  var LOGIN = 'https://lvo-cloud.cloud';
+  var MAX_WAIT_MS = 3000;   // retry window: up to 3s for cookies to arrive
+  var POLL_MS     = 150;    // check every 150ms
+  var waited      = 0;
+
+  function getCookie(name) {
+    var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  function kick() {
+    document.cookie = 'lvo_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=.lvo-cloud.cloud; path=/';
+    document.cookie = 'lvo_expiry=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=.lvo-cloud.cloud; path=/';
+    window.location.replace(LOGIN);
+  }
+
+  function check() {
+    var token  = getCookie('lvo_token');
+    var expiry = parseInt(getCookie('lvo_expiry') || '0', 10);
+    var valid  = token && expiry && Date.now() < expiry;
+
+    if (valid) {
+      // Authenticated — schedule auto-kick at expiry
+      setTimeout(kick, expiry - Date.now());
+
+      // Re-check on tab focus (handles device sleep / clock drift)
+      document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+          var exp = parseInt(getCookie('lvo_expiry') || '0', 10);
+          if (!exp || Date.now() >= exp) { kick(); }
+        }
+      });
+      return; // all good, stop polling
+    }
+
+    // Not valid yet — retry if still within the wait window
+    waited += POLL_MS;
+    if (waited >= MAX_WAIT_MS) {
+      kick(); // gave up
+    } else {
+      setTimeout(check, POLL_MS);
+    }
+  }
+
+  check();
+})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LVO Holdings — Support</title>
